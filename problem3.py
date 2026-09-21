@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import CubicSpline
 from scipy.integrate import simpson
 
 
@@ -17,28 +16,6 @@ P_data = data[:, 1]
 
 
 # ---------------------------------------------------------
-# Interpolate P(k)
-# ---------------------------------------------------------
-
-# The data are spaced logarithmically in k, so I interpolate
-# log(P) as a function of log(k).
-spline = CubicSpline(
-    np.log(k_data),
-    np.log(P_data)
-)
-
-
-def P_of_k(k):
-    """
-    Return the interpolated value of P(k).
-    """
-
-    return np.exp(
-        spline(np.log(k))
-    )
-
-
-# ---------------------------------------------------------
 # Calculate xi(r)
 # ---------------------------------------------------------
 
@@ -48,23 +25,26 @@ def calculate_xi(r_values, k_max, dk=0.001):
 
         xi(r) = 1/(2*pi^2) integral
                 k^2 P(k) sin(kr)/(kr) dk
-
-    for a set of r values.
     """
 
-    # Start at the smallest k in the data instead of zero
-    # so that log(k) is always defined.
+    # Make a fine, evenly spaced k grid
     k = np.arange(
         k_data[0],
-        k_max,
+        k_max + dk,
         dk
     )
 
-    P = P_of_k(k)
+    # Use linear interpolation to estimate P(k)
+    # between the points in the supplied data file
+    P = np.interp(
+        k,
+        k_data,
+        P_data
+    )
 
     xi_values = []
 
-    # Calculate the integral separately for each r
+    # Calculate the integral for each value of r
     for r in r_values:
 
         kr = k * r
@@ -95,11 +75,14 @@ def calculate_xi(r_values, k_max, dk=0.001):
 r_values = np.linspace(
     50,
     120,
-    701
+    1401
 )
 
 
-# Use k_max = 50 h/Mpc for the main calculation
+# ---------------------------------------------------------
+# Main calculation
+# ---------------------------------------------------------
+
 k_max = 50.0
 
 xi = calculate_xi(
@@ -107,8 +90,7 @@ xi = calculate_xi(
     k_max
 )
 
-
-# Multiply by r^2 to make the BAO bump easier to see
+# Multiply by r^2 so the BAO bump is easier to see
 r2_xi = r_values**2 * xi
 
 
@@ -116,10 +98,15 @@ r2_xi = r_values**2 * xi
 # Find the BAO peak
 # ---------------------------------------------------------
 
-# Find the location of the maximum of r^2 xi(r)
-peak_index = np.argmax(r2_xi)
+# Search for the peak in the large-scale BAO region
+bao_region = (
+    (r_values >= 80)
+    & (r_values <= 120)
+)
 
-bao_peak = r_values[peak_index]
+bao_peak = r_values[bao_region][
+    np.argmax(r2_xi[bao_region])
+]
 
 print(
     f"BAO peak = {bao_peak:.2f} Mpc/h"
@@ -138,7 +125,7 @@ plt.plot(
     label=r"$r^2\xi(r)$"
 )
 
-# Mark the BAO peak
+# Mark the location of the BAO peak
 plt.axvline(
     bao_peak,
     linestyle="--",
@@ -157,7 +144,6 @@ plt.grid(True, alpha=0.3)
 
 plt.tight_layout()
 
-# Save the figure for the LaTeX writeup
 plt.savefig(
     "problem3_bao.png",
     dpi=200
@@ -167,7 +153,7 @@ plt.show()
 
 
 # ---------------------------------------------------------
-# Check whether the choice of k_max changes the BAO peak
+# Test different upper integration limits
 # ---------------------------------------------------------
 
 print()
@@ -192,15 +178,13 @@ for test_kmax in k_max_values:
         * xi_test
     )
 
-    peak_index = np.argmax(
-        r2_xi_test
-    )
-
-    peak_r = r_values[
-        peak_index
+    peak = r_values[bao_region][
+        np.argmax(
+            r2_xi_test[bao_region]
+        )
     ]
 
     print(
         f"k_max = {test_kmax:5.1f} h/Mpc"
-        f"   BAO peak = {peak_r:.2f} Mpc/h"
+        f"   BAO peak = {peak:.2f} Mpc/h"
     )
